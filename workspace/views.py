@@ -25,7 +25,7 @@ def create_blog_view(request):
             blog.save()
  
             create_blog_post.delay(blog.id, blog.title, blog.description, blog.img.name)
-            return HttpResponse('Blog post creation has started. It will be available once processing is completed.')
+            return HttpResponse('blog created')
     else:
         form = BlogForm()
 
