@@ -1,0 +1,165 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Python Code Execution with Live Preview and Terminal</title>
+  
+  <!-- jQuery -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+
+  <!-- xterm.js -->
+  <link rel="stylesheet" href="{% static 'css/xterm.css' %}"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/3.14.5/xterm.min.js"></script>
+  
+  <!-- Monaco Editor -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.36.1/min/vs/loader.min.js"></script>
+  
+  <style>
+    body {
+      display: flex;
+      height: 100vh;
+      margin: 0;
+      overflow: hidden;
+    }
+    #editorContainer {
+      flex: 1;
+      height: 100%;
+    }
+    #outputTerminalContainer {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    #outputContainer {
+      flex: 1;
+      background-color: #d1cece;
+      overflow-y: auto;
+      padding: 10px;
+      border: 2px solid #ddd;
+    }
+    #terminalContainer {
+      flex: 1;
+      overflow: hidden;
+      background-color: #1e1e1e;
+    }
+    .xterm {
+      height: 100% !important;
+      width: 100% !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="editorContainer"></div>
+  <div id="outputTerminalContainer">
+    <div id="outputContainer"></div>
+    <div id="terminalContainer"></div>
+  </div>
+  
+  <script>
+    let editor, term;
+    let currentDirectory = '/';
+
+    // Initialize Monaco Editor
+    require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.36.1/min/vs' }});
+    require(['vs/editor/editor.main'], function() {
+      editor = monaco.editor.create(document.getElementById('editorContainer'), {
+        value: 'print("Hello, World!")',
+        language: 'python',
+        theme: 'vs-dark',
+        automaticLayout: true
+      });
+
+      editor.addAction({
+        id: 'run-python-code',
+        label: 'Run Python Code',
+        keybindings: [
+          monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter
+        ],
+        contextMenuGroupId: 'navigation',
+        contextMenuOrder: 1,
+        run: function() {
+          runCode();
+        }
+      });
+    });
+
+    // Initialize xterm.js terminal
+    function initializeTerminal() {
+      term = new Terminal({
+        cursorBlink: "block"
+      });
+
+      term.open(document.getElementById('terminalContainer'));
+      term.write('Welcome to the Python terminal!\r\n');
+      term.prompt = () => {
+        term.write(`\r\n${currentDirectory}$ `);
+      };
+      term.prompt();
+
+      let currentLine = '';
+      let currentPosition = 0;
+
+      term.onKey(({ key, domEvent }) => {
+        const printable = !domEvent.altKey && !domEvent.ctrlKey && !domEvent.metaKey;
+
+        if (domEvent.keyCode === 13) { // Enter
+          term.write('\r\n');
+          if (currentLine.trim()) {
+            executeCommand(currentLine);
+          } else {
+            term.prompt();
+          }
+          currentLine = '';
+          currentPosition = 0;
+        } else if (domEvent.keyCode === 8) { // Backspace
+          if (currentPosition > 0) {
+            currentLine = currentLine.slice(0, currentPosition - 1) + currentLine.slice(currentPosition);
+            currentPosition--;
+            term.write('\b \b');
+          }
+        } else if (printable) {
+          currentLine = currentLine.slice(0, currentPosition) + key + currentLine.slice(currentPosition);
+          currentPosition++;
+          term.write(key);
+        }
+      });
+    }
+
+    function executeCommand(command) {
+      $.ajax({
+        url: '/execute_command/',
+        method: 'POST',
+        data: {
+          command: command,
+          current_directory: currentDirectory,
+          csrfmiddlewaretoken: '{{ csrf_token }}'
+        },
+        success: function(response) {
+          term.writeln(response.output);
+          if (response.new_directory) {
+            currentDirectory = response.new_directory;
+          }
+          term.prompt();
+        },
+        error: function(xhr, status, error) {
+          term.writeln('Error: ' + error);
+          term.prompt();
+        }
+      });
+    }
+
+    function runCode() {
+      const pythonCode = editor.getValue();
+      executeCommand('python -c "' + pythonCode.replace(/"/g, '\\"') + '"');
+    }
+
+    // Initialize everything when the document is ready
+    document.addEventListener('DOMContentLoaded', function() {
+      initializeTerminal();
+    });
+  </script>
+</body>
+</html>
