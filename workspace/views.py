@@ -18,8 +18,6 @@ def create_blog_view(request):
     if request.method == 'POST':
         form = BlogForm(request.POST, request.FILES)
         if form.is_valid():
-            # time.sleep(5)
-            # blog = form.save()
             blog = form.save(commit = False)  
             blog.status = 'Pending'
             blog.save()
@@ -201,21 +199,21 @@ from django.http import JsonResponse
 def start_container(request):
     try:
         # Replace with the actual container ID
-        container_id = "497f191626ce"
+        container_id = "b6c6f245b554"
 
         # Start the container
-        result_string = docker.run("django", ["python3","app/manage.py","runserver"], volumes=[("/home/bacancy/Desktop/ide/CloudIde", "/app", "rw")])
+        # result_string = docker.run("django", ["python3","app/manage.py","runserver"], volumes=[("/home/bacancy/Desktop/ide/CloudIde", "/app", "rw")])
         # container = docker.run("django",[["django-admin", "startproject", "test", "."],["python3","manage.py","runserver"]])
 
-        print(result_string)
+        # print(result_string)
 
         # List the files within the container
+        result = docker.start(container_id)
+        files = docker.execute(container_id, ["django-admin", "startproject", "test"])
 
-        # files = docker.execute(container_id, ["django-admin", "startproject", "test"])
+        filenames = [line.split()[-1] for line in files.splitlines()]
 
-        # filenames = [line.split()[-1] for line in files.splitlines()]
-
-        # print(filenames)
+        print(filenames)
 
         # Return a JsonResponse with the file listing
         return JsonResponse({'container_id': container_id, 'files': filenames})
